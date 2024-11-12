@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Hackathon Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="min-h-screen">
+        <nav class="bg-white shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+                    </div>
+                    <div class="flex items-center">
+                        <button @click="view = 'teams'" :class="{'bg-blue-500 text-white': view === 'teams'}" class="px-4 py-2 rounded-md mr-2">
+                            Teams & Scores
+                        </button>
+                        <button @click="view = 'chat'" :class="{'bg-blue-500 text-white': view === 'chat'}" class="px-4 py-2 rounded-md">
+                            Chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Teams View -->
+        <div v-if="view === 'teams'" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Topic</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr v-for="team in teams" :key="team.id">
+                            <td class="px-6 py-4 whitespace-nowrap">{{ team.name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">{{ team.topic }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <select v-model="team.status" @change="updateTeam(team)" class="rounded-md border-gray-300">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="number" v-model="team.score" @change="updateTeam(team)" 
+                                       class="w-20 rounded-md border-gray-300" min="0" max="100" step="0.1">
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button @click="team.status = 'inactive'; updateTeam(team)" 
+                                        class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">
+                                    Disqualify
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Chat View -->
+        <div v-if="view === 'chat'" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-4 gap-6">
+                <!-- Teams Sidebar -->
+                <div class="col-span-1 bg-white rounded-lg shadow-md p-4">
+                    <h2 class="text-xl font-bold mb-4">Teams</h2>
+                    <div v-for="team in teams" :key="team.id" class="mb-4 p-4 bg-gray-50 rounded-md">
+                        <h3 class="font-bold">{{ team.name }}</h3>
+                        <p class="text-sm text-gray-600">Topic: {{ team.topic }}</p>
+                        <p class="text-sm text-gray-600">Status: {{ team.status }}</p>
+                        <p class="text-sm text-gray-600">Score: {{ team.score }}</p>
+                    </div>
+                </div>
+
+                <!-- Chat Area -->
+                <div class="col-span-3 bg-white rounded-lg shadow-md">
+                    <div class="h-[600px] flex flex-col">
+                        <!-- Messages -->
+                        <div class="flex-1 p-4 overflow-y-auto">
+                            <div v-for="message in messages" :key="message.id" class="mb-4">
+                                <div class="flex items-start">
+                                    <div class="flex-1">
+                                        <p class="font-bold">
+                                            {{ message.username }} ({{ message.role }})
+                                            <span class="text-xs text-gray-500 ml-2">{{ formatDate(message.timestamp) }}</span>
+                                        </p>
+                                        <p class="text-gray-700">{{ message.content }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Message Input -->
+                        <div class="border-t p-4">
+                            <form @submit.prevent="sendMessage" class="flex gap-2">
+                                <input v-model="newMessage" type="text" placeholder="Type your message..." 
+                                       class="flex-1 rounded-md border-gray-300">
+                                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+                                    Send
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    view: 'teams',
+                    teams: [],
+                    messages: [],
+                    newMessage: ''
+                }
+            },
+            mounted() {
+                this.fetchTeams()
+                this.fetchMessages()
+                // Poll for new messages every 5 seconds
+                setInterval(this.fetchMessages, 5000)
+            },
+            methods: {
+                formatDate(timestamp) {
+                    return new Date(timestamp).toLocaleString()
+                },
+                fetchTeams() {
+                    const token = localStorage.getItem('access_token')
+                    axios.get('/api/teams', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    .then(response => {
+                        this.teams = response.data
+                    })
+                    .catch(error => {
+                        console.error('Error fetching teams:', error)
+                    })
+                },
+                updateTeam(team) {
+                    const token = localStorage.getItem('access_token')
+                    axios.put('/api/teams', {
+                        team_id: team.id,
+                        status: team.status,
+                        score: team.score
+                    }, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    .then(response => {
+                        console.log('Team updated successfully')
+                    })
+                    .catch(error => {
+                        console.error('Error updating team:', error)
+                    })
+                },
+                fetchMessages() {
+                    const token = localStorage.getItem('access_token')
+                    axios.get('/api/messages', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    .then(response => {
+                        this.messages = response.data
+                    })
+                    .catch(error => {
+                        console.error('Error fetching messages:', error)
+                    })
+                },
+                sendMessage() {
+                    if (!this.newMessage.trim()) return
+
+                    const token = localStorage.getItem('access_token')
+                    axios.post('/api/messages', {
+                        content: this.newMessage
+                    }, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    .then(response => {
+                        this.newMessage = ''
+                        this.fetchMessages()
+                    })
+                    .catch(error => {
+                        console.error('Error sending message:', error)
+                    })
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
